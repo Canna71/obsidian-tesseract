@@ -1,5 +1,5 @@
 import { DEFAULT_SETTINGS, TesseractSettings } from "src/Settings";
-import { addIcon, MarkdownView } from "obsidian";
+import { addIcon, FileSystemAdapter, MarkdownView, normalizePath } from "obsidian";
 
 // import { MathResult } from './Extensions/ResultMarkdownChild';
 /* eslint-disable @typescript-eslint/no-unused-vars */
@@ -14,25 +14,52 @@ import {
 } from "obsidian";
 import { TesseractSettingsTab } from "src/SettingTab";
 
-
 const sigma = `<path stroke="currentColor" fill="none" d="M78.6067 22.8905L78.6067 7.71171L17.8914 7.71171L48.2491 48.1886L17.8914 88.6654L78.6067 88.6654L78.6067 73.4866" opacity="1"  stroke-linecap="round" stroke-linejoin="round" stroke-width="6" />
 `;
+import { createWorker, Worker } from "tesseract.js";
+import path from "path";
 
-// Remember to rename these classes and interfaces!
+
+// https://github.com/naptha/tesseract.js#tesseractjs
+// TODO: consider also https://www.npmjs.com/package/node-native-ocr
 
 let gSettings: TesseractSettings;
 
-export function getTesseractSettings() { return gSettings; }
+export function getTesseractSettings() {
+    return gSettings;
+}
+
+
+const EMBED_REGEX = /!\[\[(.*\.(?:png|jpg|jpeg|gif|bmp|svg))(?:.*)\]\]/i;
+
+function parseInternalImageLink(line: string){
+    const m = EMBED_REGEX.exec(line);
+    if(m!==null){
+        return m[1];
+    }
+}
+
 export default class TesseractPlugin extends Plugin {
     settings: TesseractSettings;
- 
+    worker: Worker;
+    basePath: string;
+
     async onload() {
         await this.loadSettings();
 
         this.registerView(TESSERACT_VIEW, (leaf) => new TesseractView(leaf));
 
-        addIcon("sigma",sigma); 
+        addIcon("sigma", sigma);
 
+        this.basePath = path.join(
+            (this.app.vault.adapter as any).getBasePath(),
+            this.manifest.dir || ""
+        );
+        
+        this.worker = createWorker({
+            cachePath: this.basePath,
+            logger: (m) => console.log(m),
+        });
 
         if (this.settings.addRibbonIcon) {
             // This creates an icon in the left ribbon.
@@ -48,14 +75,44 @@ export default class TesseractPlugin extends Plugin {
         }
 
         this.addCommand({
-            id: "show-Tesseract-view",
-            name: "Show Tesseract Sidebar",
-            callback: () => this.activateView(),
-          });
-         
+            id: "test-tesseract",
+            name: "test tesseract",
+
+            editorCallback: async (editor, view)=>{
+                const cursor  = editor.getCursor();
+                //@ts-ignore
+                // const token = editor.getClickableTokenAt(cursor);
+                // console.log(token);
+                // if(token && (token.type === "internal-link" || token.type === "external-link") ) {
+                //     //
+                // }
+                const line = editor.getLine(cursor.line);
+                const il = parseInternalImageLink(line);
+                if(il){
+                    console.log(il);
+                    const adapter = this.app.vault.adapter;
+                    if(adapter instanceof FileSystemAdapter) {
+                        const normalizedPath = normalizePath(il)
+                        let fullPath = adapter.getFilePath(normalizedPath) as string | URL
+                        console.log(fullPath);
+                        if(!(typeof fullPath === "string")){
+                            fullPath = fullPath.pathname;
+                        }
+                        const text = await this.recognize(fullPath);
+                        
+                    }
+                    
+                }
+
+
+            },
+            
+        });
+
+
 
         this.app.workspace.onLayoutReady(() => {
-            if(this.settings.showAtStartup){
+            if (this.settings.showAtStartup) {
                 this.activateView();
             }
         });
@@ -71,7 +128,6 @@ export default class TesseractPlugin extends Plugin {
                 if (leaf?.view instanceof MarkdownView) {
                     // @ts-expect-error, not typed
                     const editorView = leaf.view.editor.cm as EditorView;
-                    
                 }
             },
             this
@@ -90,6 +146,20 @@ export default class TesseractPlugin extends Plugin {
 
     onunload() {
         this.app.workspace.detachLeavesOfType(TESSERACT_VIEW);
+    }
+
+    async recognize(img:string){
+        await this.worker.load();
+        await this.worker.loadLanguage("eng");
+        await this.worker.initialize('eng');
+        const {
+            data: { text },
+        } = await this.worker.recognize(
+            img
+        );
+        console.log(text);
+        await this.worker.terminate();
+        return text;
     }
 
     async loadSettings() {
@@ -133,7 +203,7 @@ export default class TesseractPlugin extends Plugin {
     }
 
     async registerPostProcessor() {
-        console.log("registerPostProcessor");
+        // console.log("registerPostProcessor");
         // await loadMathJax();
         // await finishRenderMath();
         // this.registerMarkdownPostProcessor(getPostPrcessor(this.settings));
