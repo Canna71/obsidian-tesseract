@@ -1,11 +1,11 @@
-import TemplatePlugin from "src/main";
+import TesseractPlugin from "src/main";
 import { App, PluginSettingTab, Setting } from "obsidian";
 
 
-export class TemplateSettingsTab extends PluginSettingTab {
-	plugin: TemplatePlugin;
+export class TesseractSettingsTab extends PluginSettingTab {
+	plugin: TesseractPlugin;
 
-	constructor(app: App, plugin: TemplatePlugin) {
+	constructor(app: App, plugin: TesseractPlugin) {
 		super(app, plugin);
 		this.plugin = plugin;
 	}
@@ -15,15 +15,15 @@ export class TemplateSettingsTab extends PluginSettingTab {
 
 		containerEl.empty();
 
-		containerEl.createEl('h2', {text: 'Template Settings'});
+		containerEl.createEl('h2', {text: 'Tesseract Settings'});
 
         this.createToggle(containerEl, "Add Ribbon Icon",
             "Adds an icon to the ribbon to launch scan",
             "addRibbonIcon"
         );
 
-        this.createToggle(containerEl, "Show Template Sidebar",
-        "Opens Template sidebar at startup",
+        this.createToggle(containerEl, "Show Tesseract Sidebar",
+        "Opens Tesseract sidebar at startup",
         "showAtStartUp"
     	);
 

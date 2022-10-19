@@ -6,16 +6,16 @@ import { createRoot, Root } from "react-dom/client";
 
 
 import { loadMathJax } from "obsidian";
-import { TemplateSettings } from "src/Settings";
-import { getTemplateSettings } from "src/main";
-export const TEMPLATE_VIEW = "Template-view";
+import { TesseractSettings } from "src/Settings";
+import { getTesseractSettings } from "src/main";
+export const TESSERACT_VIEW = "Tesseract-view";
 
-export const TemplateContext = React.createContext<any>({});
+export const TesseractContext = React.createContext<any>({});
 
 
 
-export class TemplateView extends ItemView {
-    settings: TemplateSettings;
+export class TesseractView extends ItemView {
+    settings: TesseractSettings;
     root: Root;
     state = {
 
@@ -25,8 +25,8 @@ export class TemplateView extends ItemView {
 
     constructor(leaf: WorkspaceLeaf) {
         super(leaf);
-        // this.settings = (this.app as any).plugins.plugins["obsidian-Template"].settings as TemplateSettings;
-        this.settings = getTemplateSettings();
+        // this.settings = (this.app as any).plugins.plugins["obsidian-Tesseract"].settings as TesseractSettings;
+        this.settings = getTesseractSettings();
         this.state = {
 
         };
@@ -34,11 +34,11 @@ export class TemplateView extends ItemView {
     }
 
     getViewType() {
-        return TEMPLATE_VIEW;
+        return TESSERACT_VIEW;
     }
 
     getDisplayText() {
-        return "Template";
+        return "Tesseract";
     }
 
     override onResize(): void {
@@ -57,12 +57,12 @@ export class TemplateView extends ItemView {
 
         this.root.render(
             <React.StrictMode>
-                <TemplateContext.Provider value={{
+                <TesseractContext.Provider value={{
                     width: this.contentEl.innerWidth,
                     settings: this.settings
                 }}>
                    <div>TODO:</div>
-                </TemplateContext.Provider>
+                </TesseractContext.Provider>
             </React.StrictMode>
         );
     }
