@@ -84,6 +84,16 @@ function parseInternalImageLink(line: string) : ParsedImage | undefined {
     }
 }
 
+function replaceInternalImageLink(line: string, pi:ParsedImage, altText: string){
+
+    let newImg = `[[${pi.urlOrPath} | ${altText}`;
+    if(pi.size){
+        newImg += `| ${pi.size}`
+    }
+    newImg += `]]`;
+    return line.replace(pi.regex[0],newImg);
+}
+
 function parseExternalImageLink(line: string) : ParsedImage | undefined{
     const m = LINK_REGEX.exec(line);
     if (m !== null) {
@@ -160,25 +170,24 @@ export default class TesseractPlugin extends Plugin {
 
             editorCallback: async (editor, view) => {
                 const cursor = editor.getCursor();
-                //@ts-ignore
-                // const token = editor.getClickableTokenAt(cursor);
-                // console.log(token);
-                // if(token && (token.type === "internal-link" || token.type === "external-link") ) {
-                //     //
-                // }
+                
                 const line = editor.getLine(cursor.line);
-                let il = parseInternalImageLink(line);
-                if (!il) {
-                    il = parseExternalImageLink(line);
+                let parsedImage = parseInternalImageLink(line);
+                if (!parsedImage) {
+                    parsedImage = parseExternalImageLink(line);
                 }
-                if (il) {
-                    const imgUrl = await this.getImageURL(il.urlOrPath, il.extension);
+                if (parsedImage) {
+                    const imgUrl = await this.getImageURL(parsedImage.urlOrPath, parsedImage.extension);
 
                     if (imgUrl) {
-                        const text = await this.recognize(imgUrl);
+                        let text = await this.recognize(imgUrl);
                         console.log(text);
                         if(text && text.length>5){
-                            il.altText = text;
+                            text = text.replace("|","");
+                            parsedImage.altText = text;
+                            const newLine = replaceInternalImageLink(line, parsedImage, text);
+                            console.log(newLine);
+                            editor.replaceRange(newLine, {line:cursor.line, ch:0});
                         }
                     }
                 }
