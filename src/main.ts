@@ -36,35 +36,36 @@ export function getTesseractSettings() {
 }
 
 interface ParsedImage {
-    altText?: string,
-    urlOrPath: string,
-    extension: string,
-    size?:string,
-    type: "embed" | "link",
-    regex: RegExpExecArray
+    altText?: string;
+    urlOrPath: string;
+    extension: string;
+    size?: string;
+    type: "embed" | "link";
+    regex: RegExpExecArray;
 }
 const TEXT_THRESHOLD = 5;
 // https://regex101.com/r/uPu8E2/1
-const EMBED_REGEX = /!\[\[\b(.*\.(png|jpg|jpeg|gif|bmp|svg))(?:[^|]*)(?:\|([^|]*))?(?:\|([^|]*))?\]\]/i;
+const EMBED_REGEX =
+    /!\[\[\b(.*\.(png|jpg|jpeg|gif|bmp|svg))(?:[^|]*)(?:\|([^|]*))?(?:\|([^|]*))?\]\]/i;
 
 const IMGSIZE_REGEX = /\d*(?:x\d+)?/i;
 // https://regex101.com/r/kXe1en/1
 const LINK_REGEX = /!\[(.*)\].*\((.*\.(png|jpg|jpeg|gif|bmp|svg))(?:.*)\)/i;
 
+const ALTTEXT_INVALID_REGEX = /[|[\]\n]/gi;
 
-
-function parseInternalImageLink(line: string) : ParsedImage | undefined {
+function parseInternalImageLink(line: string): ParsedImage | undefined {
     const m = EMBED_REGEX.exec(line);
     if (m !== null) {
         let size = undefined;
         let altText = undefined;
-        if(m[3]){
-            if( m[4]){
+        if (m[3]) {
+            if (m[4]) {
                 altText = m[3].trim();
                 size = m[4].trim();
             } else {
                 const msize = IMGSIZE_REGEX.exec(m[3]);
-                if(msize){
+                if (msize) {
                     size = m[3].trim();
                 } else {
                     altText = m[3].trim();
@@ -72,55 +73,54 @@ function parseInternalImageLink(line: string) : ParsedImage | undefined {
             }
         }
 
-        const ret:ParsedImage = {
+        const ret: ParsedImage = {
             urlOrPath: m[1].trim(),
             extension: m[2].trim(),
             size,
             altText,
             type: "embed",
-            regex: m
-        }
+            regex: m,
+        };
         return ret;
     }
 }
 
-function replaceInternalImageLink(line: string, pi:ParsedImage, altText: string){
-
-    let newImg = `[[${pi.urlOrPath} | ${altText}`;
-    if(pi.size){
-        newImg += `| ${pi.size}`
+function replaceInternalImageLink(line: string, pi: ParsedImage) {
+    let newImg = `![[${pi.urlOrPath} | ${pi.altText}`;
+    if (pi.size) {
+        newImg += `| ${pi.size}`;
     }
     newImg += `]]`;
-    return line.replace(pi.regex[0],newImg);
+    return line.replace(EMBED_REGEX, newImg);
 }
 
-function parseExternalImageLink(line: string) : ParsedImage | undefined{
+function parseExternalImageLink(line: string): ParsedImage | undefined {
     const m = LINK_REGEX.exec(line);
     if (m !== null) {
         const n = m.length;
         let size = undefined;
         let altText = undefined;
-        if(n>3){
-            if(n===5){
+        if (n > 3) {
+            if (n === 5) {
                 altText = m[1].trim();
                 size = m[2].trim();
             } else {
                 const msize = IMGSIZE_REGEX.exec(m[1]);
-                if(msize){
+                if (msize) {
                     size = m[3].trim();
                 } else {
                     altText = m[3].trim();
                 }
             }
         }
-        const ret:ParsedImage = {
+        const ret: ParsedImage = {
             altText,
             size,
-            urlOrPath: m[n-2],
-            extension: m[n-1],
+            urlOrPath: m[n - 2],
+            extension: m[n - 1],
             type: "link",
-            regex: m
-        }
+            regex: m,
+        };
         return ret;
     }
 }
@@ -170,24 +170,30 @@ export default class TesseractPlugin extends Plugin {
 
             editorCallback: async (editor, view) => {
                 const cursor = editor.getCursor();
-                
+
                 const line = editor.getLine(cursor.line);
                 let parsedImage = parseInternalImageLink(line);
                 if (!parsedImage) {
                     parsedImage = parseExternalImageLink(line);
                 }
                 if (parsedImage) {
-                    const imgUrl = await this.getImageURL(parsedImage.urlOrPath, parsedImage.extension);
-
+                    const imgUrl = await this.getImageURL(
+                        parsedImage.urlOrPath,
+                        parsedImage.extension
+                    );
                     if (imgUrl) {
                         let text = await this.recognize(imgUrl);
                         console.log(text);
-                        if(text && text.length>5){
-                            text = text.replace("|","");
+                        if (text && text.length > 5) {
+                            text = text.replace(ALTTEXT_INVALID_REGEX, " ");
                             parsedImage.altText = text;
-                            const newLine = replaceInternalImageLink(line, parsedImage, text);
+                            const newLine = replaceInternalImageLink(
+                                line,
+                                parsedImage
+                            );
                             console.log(newLine);
-                            editor.replaceRange(newLine, {line:cursor.line, ch:0});
+                            editor.setLine(cursor.line, newLine);
+                            
                         }
                     }
                 }
@@ -229,13 +235,13 @@ export default class TesseractPlugin extends Plugin {
 
     private async getImageURL(imagePathOrURL: string, extension: string) {
         if (imagePathOrURL.toLowerCase().startsWith("http")) {
-            const resp = await requestUrl({url:imagePathOrURL});
+            const resp = await requestUrl({ url: imagePathOrURL });
             // let   tmp = (new TextDecoder("utf-8")).decode(resp.arrayBuffer); //to UTF-8 text.
             // tmp = unescape(encodeURIComponent(tmp));         //to binary-string.
             // tmp = btoa(tmp);      //BASE64.
             const uint = new Uint8Array(resp.arrayBuffer);
-            const binary = String.fromCharCode.apply(null,uint);
-            const imgUrl = `data:image/${extension};base64,${btoa(binary)}`;                           
+            const binary = String.fromCharCode.apply(null, uint);
+            const imgUrl = `data:image/${extension};base64,${btoa(binary)}`;
             console.log(imgUrl);
             return imgUrl;
         } else {
@@ -257,7 +263,7 @@ export default class TesseractPlugin extends Plugin {
                             this.app.vault.config.attachmentFolderPath,
                             normalizedPath
                         )
-                    ) as string; 
+                    ) as string;
                     imgUrl = await this.processImage(fullPath, extension);
                 }
 
@@ -270,8 +276,10 @@ export default class TesseractPlugin extends Plugin {
         this.app.workspace.detachLeavesOfType(TESSERACT_VIEW);
     }
 
-    private async processImage(imgUrl: string, extension: string): Promise<string | undefined> {
-
+    private async processImage(
+        imgUrl: string,
+        extension: string
+    ): Promise<string | undefined> {
         if (!imgUrl.toUpperCase().startsWith("HTTP")) {
             try {
                 const image = await fs.readFile(imgUrl, {
