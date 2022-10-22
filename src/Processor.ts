@@ -15,13 +15,16 @@ interface ParsedImage {
 const TEXT_THRESHOLD = 5;
 // https://regex101.com/r/uPu8E2/1
 const EMBED_REGEX =
-    /!\[\[\b(.*\.(png|jpg|jpeg|gif|bmp|svg))(?:[^|]*)(?:\|([^|]*))?(?:\|([^|]*))?\]\]/i;
+    /!\[\[\b(.*\.(png|jpg|jpeg|gif|bmp))(?:[^|]*)(?:\|([^|]*))?(?:\|([^|]*))?\]\]/i;
 
 const IMGSIZE_REGEX = /\d+(?:x\d+)?/i;
 // https://regex101.com/r/kXe1en/2
-const LINK_REGEX = /!\[(.*)\].*\((.*\.(png|jpg|jpeg|gif|bmp|svg))(?:.*)\)/i;
+const LINK_REGEX = /!\[(.*)\].*\((.*\.(png|jpg|jpeg|gif|bmp))(?:.*)\)/i;
 
 const ALTTEXT_INVALID_REGEX = /[|[\]\n]/gi;
+
+// https://regex101.com/r/RqgesY/2
+const EXTENSION_REGEX = /\.(png|jpg|jpeg|gif|bpm)($|\?) /i;
 
 function parseInternalImageLink(line: string): ParsedImage | undefined {
     const m = EMBED_REGEX.exec(line);
@@ -123,6 +126,15 @@ export class OCRProcessor {
         });
     }
 
+    static isImage(url: string) {
+        const m = EXTENSION_REGEX.exec(url);
+        if (m) {
+            return m[1];
+        } else {
+            return false;
+        }
+    }
+
     async processEditor(editor: Editor) {
         const cursor = editor.getCursor();
 
@@ -142,10 +154,10 @@ export class OCRProcessor {
                 if (text && text.length > TEXT_THRESHOLD) {
                     text = text.replace(ALTTEXT_INVALID_REGEX, " ");
                     parsedImage.altText = text;
-                    const newLine = parsedImage.type === "embed" 
-                    ? replaceInternalImageLink(line, parsedImage)
-                    : replaceExternalImageLink(line, parsedImage)
-                    ;
+                    const newLine =
+                        parsedImage.type === "embed"
+                            ? replaceInternalImageLink(line, parsedImage)
+                            : replaceExternalImageLink(line, parsedImage);
                     console.log(newLine);
                     editor.setLine(cursor.line, newLine);
                 }
@@ -153,8 +165,12 @@ export class OCRProcessor {
         }
     }
 
-
-    private async getImageURL(imagePathOrURL: string, extension: string) {
+    private async getImageURL(imagePathOrURL: string, extension?: string) {
+        if (!extension) {
+            const me = EXTENSION_REGEX.exec(imagePathOrURL);
+            if (!me) return undefined;
+            extension = me[1];
+        }
         if (imagePathOrURL.toLowerCase().startsWith("http")) {
             const resp = await requestUrl({ url: imagePathOrURL });
             // let   tmp = (new TextDecoder("utf-8")).decode(resp.arrayBuffer); //to UTF-8 text.
@@ -175,8 +191,11 @@ export class OCRProcessor {
                 ) as string;
                 let imgUrl = await this.processImage(fullPath, extension);
 
-                //@ts-ignore
-                if (!imgUrl && this.plugin.app.vault.config.attachmentFolderPath) {
+                if (
+                    !imgUrl &&
+                    //@ts-ignore
+                    this.plugin.app.vault.config.attachmentFolderPath
+                ) {
                     //@ts-ignore
                     fullPath = adapter.getFullRealPath(
                         path.join(
@@ -192,7 +211,6 @@ export class OCRProcessor {
             }
         }
     }
-
 
     private async processImage(
         imgUrl: string,
@@ -215,6 +233,13 @@ export class OCRProcessor {
         return imgUrl;
     }
 
+    async recognizeURL(src: string) {
+        const imgUrl = await this.getImageURL(src);
+        if (imgUrl) {
+            return this.recognize(imgUrl);
+        }
+    }
+
     async recognize(img: string) {
         await this.worker.load();
         await this.worker.loadLanguage("eng");
@@ -222,8 +247,7 @@ export class OCRProcessor {
         const {
             data: { text },
         } = await this.worker.recognize(img);
-        await this.worker.terminate();
+        // await this.worker.terminate();
         return text;
     }
-
 }

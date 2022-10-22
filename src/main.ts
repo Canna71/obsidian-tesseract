@@ -1,10 +1,13 @@
 import { DEFAULT_SETTINGS, TesseractSettings } from "src/Settings";
 import {
     addIcon,
+    CachedMetadata,
     MarkdownPostProcessorContext,
     MarkdownView,
     Menu,
     MenuItem,
+    Notice,
+    TFile,
 } from "obsidian";
 
 // import { MathResult } from './Extensions/ResultMarkdownChild';
@@ -104,8 +107,10 @@ export default class TesseractPlugin extends Plugin {
         this.app.metadataCache.on("resolved",( )=>{
             console.log("index finished");
         })
-        this.app.metadataCache.on("changed",(file,data, cache)=>{
-            console.log(file.path);
+        this.app.metadataCache.on("changed",async (file,data, cache)=>{
+            if(cache.embeds || cache.links){
+                await this.scanFile(file,data,cache);
+            }
         })
 
         this.app.workspace.on("editor-menu",(menu,editor,view)=>{
@@ -117,6 +122,20 @@ export default class TesseractPlugin extends Plugin {
         })
 
         this.addSettingTab(new TesseractSettingsTab(this.app, this));
+    }
+
+    async scanFile(file: TFile, data: string, cache: CachedMetadata) {
+        cache.embeds?.forEach(async embed=>{
+            const url = embed.link;
+            const extension = OCRProcessor.isImage(url);
+            const altText = embed.displayText;
+            if(extension && (!altText || !altText.length)){
+                const text = await this.processor.recognizeURL(url);
+                //TODO: filter text length
+                console.log(data, embed);
+                // this.app.vault.modify()
+            }
+        })
     }
 
     onunload() {
@@ -171,29 +190,40 @@ export default class TesseractPlugin extends Plugin {
             // const internalEmbeds = el.querySelectorAll("span.internal-embed")
             // console.log(internalEmbeds);
             // internalEmbeds.forEach(ie=>console.log(ie.innerHTML));
-            el.querySelectorAll("img, span.internal-embed").forEach(img=>{
-                if(img){
-                    console.log(img.outerHTML);
-                    img.addEventListener("contextmenu",(ev:MouseEvent)=>{
-                        console.log(ev);
-                        const menu = new Menu();
-                        menu.addItem((item: MenuItem) => {
-                            item.setIcon("image-file")
+            this.registerContextMenu(el);
+        });
+    }
+
+    private registerContextMenu(el: HTMLElement) {
+        el.querySelectorAll("img, span.internal-embed").forEach(img => {
+            if (img) {
+                console.log(img.outerHTML);
+                img.addEventListener("contextmenu", (ev: MouseEvent) => {
+                    const menu = new Menu();
+                    menu.addItem((item: MenuItem) => {
+                        item.setIcon("image-file")
                             .setTitle("Copy text content to clipboard")
                             .onClick(async () => {
-                                //@ts-ignore
-                                console.log(img.outerHTML);
-                                console.log("TODO: ", img.getAttr("src"))
-                            })
-                        })
-                        menu.showAtPosition({ x: ev.pageX, y: ev.pageY });
+                                const src = img.getAttr("src");
+                                if(src){
+                                    const text = await this.processor.recognizeURL(src); 
+                                    if(text && text.length){
+                                        navigator.clipboard.writeText(text);
+                                        new Notice("Text copied to clipboard")
+                                        return;
+                                    }
+                                } 
+                                new Notice("No text found")
+                                
+                            });
                     });
-                    // img.oncontextmenu = (ev=>{
-                    //     //
-                    //     console.log(ev);
-                    // });
-                }
-            })
+                    menu.showAtPosition({ x: ev.pageX, y: ev.pageY });
+                });
+                // img.oncontextmenu = (ev=>{
+                //     //
+                //     console.log(ev);
+                // });
+            }
         });
     }
 
