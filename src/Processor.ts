@@ -18,7 +18,7 @@ const EMBED_REGEX =
     /!\[\[\b(.*\.(png|jpg|jpeg|gif|bmp|svg))(?:[^|]*)(?:\|([^|]*))?(?:\|([^|]*))?\]\]/i;
 
 const IMGSIZE_REGEX = /\d+(?:x\d+)?/i;
-// https://regex101.com/r/kXe1en/1
+// https://regex101.com/r/kXe1en/2
 const LINK_REGEX = /!\[(.*)\].*\((.*\.(png|jpg|jpeg|gif|bmp|svg))(?:.*)\)/i;
 
 const ALTTEXT_INVALID_REGEX = /[|[\]\n]/gi;

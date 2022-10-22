@@ -1,7 +1,10 @@
 import { DEFAULT_SETTINGS, TesseractSettings } from "src/Settings";
 import {
     addIcon,
+    MarkdownPostProcessorContext,
     MarkdownView,
+    Menu,
+    MenuItem,
 } from "obsidian";
 
 // import { MathResult } from './Extensions/ResultMarkdownChild';
@@ -98,13 +101,20 @@ export default class TesseractPlugin extends Plugin {
             this
         );
 
-        this.app.workspace.on(
-            "codemirror",
-            (cm: CodeMirror.Editor) => {
-                console.log("codemirror", cm);
-            },
-            this
-        );
+        this.app.metadataCache.on("resolved",( )=>{
+            console.log("index finished");
+        })
+        this.app.metadataCache.on("changed",(file,data, cache)=>{
+            console.log(file.path);
+        })
+
+        this.app.workspace.on("editor-menu",(menu,editor,view)=>{
+            console.log("editor-menu", menu);
+        })
+
+        this.app.workspace.on("file-menu",(menu,editor,view)=>{
+            console.log("file-menu",menu);
+        })
 
         this.addSettingTab(new TesseractSettingsTab(this.app, this));
     }
@@ -155,10 +165,36 @@ export default class TesseractPlugin extends Plugin {
     }
 
     async registerPostProcessor() {
-        // console.log("registerPostProcessor");
-        // await loadMathJax();
-        // await finishRenderMath();
-        // this.registerMarkdownPostProcessor(getPostPrcessor(this.settings));
+
+        this.registerMarkdownPostProcessor((el:HTMLElement,ctx:MarkdownPostProcessorContext)=>{
+            console.log(el);
+            // const internalEmbeds = el.querySelectorAll("span.internal-embed")
+            // console.log(internalEmbeds);
+            // internalEmbeds.forEach(ie=>console.log(ie.innerHTML));
+            el.querySelectorAll("img, span.internal-embed").forEach(img=>{
+                if(img){
+                    console.log(img.outerHTML);
+                    img.addEventListener("contextmenu",(ev:MouseEvent)=>{
+                        console.log(ev);
+                        const menu = new Menu();
+                        menu.addItem((item: MenuItem) => {
+                            item.setIcon("image-file")
+                            .setTitle("Copy text content to clipboard")
+                            .onClick(async () => {
+                                //@ts-ignore
+                                console.log(img.outerHTML);
+                                console.log("TODO: ", img.getAttr("src"))
+                            })
+                        })
+                        menu.showAtPosition({ x: ev.pageX, y: ev.pageY });
+                    });
+                    // img.oncontextmenu = (ev=>{
+                    //     //
+                    //     console.log(ev);
+                    // });
+                }
+            })
+        });
     }
 
     async registerEditorExtensions() {
