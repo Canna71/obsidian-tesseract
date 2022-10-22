@@ -24,9 +24,9 @@ const LINK_REGEX = /!\[(.*)\].*\((.*\.(png|jpg|jpeg|gif|bmp))(?:.*)\)/i;
 const ALTTEXT_INVALID_REGEX = /[|[\]\n]/gi;
 
 // https://regex101.com/r/RqgesY/2
-const EXTENSION_REGEX = /\.(png|jpg|jpeg|gif|bpm)($|\?) /i;
+const EXTENSION_REGEX = /\.(png|jpg|jpeg|gif|bpm)$/i;
 
-function parseInternalImageLink(line: string): ParsedImage | undefined {
+export function parseInternalImageLink(line: string): ParsedImage | undefined {
     const m = EMBED_REGEX.exec(line);
     if (m !== null) {
         let size = undefined;
@@ -57,7 +57,7 @@ function parseInternalImageLink(line: string): ParsedImage | undefined {
     }
 }
 
-function replaceInternalImageLink(line: string, pi: ParsedImage) {
+export function replaceInternalImageLink(line: string, pi: ParsedImage) {
     let newImg = `![[${pi.urlOrPath} | ${pi.altText}`;
     if (pi.size) {
         newImg += `| ${pi.size}`;
@@ -66,7 +66,7 @@ function replaceInternalImageLink(line: string, pi: ParsedImage) {
     return line.replace(EMBED_REGEX, newImg);
 }
 
-function parseExternalImageLink(line: string): ParsedImage | undefined {
+export function parseExternalImageLink(line: string): ParsedImage | undefined {
     const m = LINK_REGEX.exec(line);
     if (m !== null) {
         const n = m.length;
@@ -97,7 +97,7 @@ function parseExternalImageLink(line: string): ParsedImage | undefined {
     }
 }
 
-function replaceExternalImageLink(line: string, pi: ParsedImage) {
+export function replaceExternalImageLink(line: string, pi: ParsedImage) {
     let newImg = `![${pi.altText}`;
     if (pi.size) {
         newImg += `| ${pi.size}`;
@@ -122,7 +122,7 @@ export class OCRProcessor {
         );
         this.worker = createWorker({
             cachePath: this.basePath,
-            logger: (m) => console.log(m),
+            // logger: (m) => console.log(m),
         });
     }
 
@@ -152,7 +152,7 @@ export class OCRProcessor {
                 let text = await this.recognize(imgUrl);
                 console.log(text);
                 if (text && text.length > TEXT_THRESHOLD) {
-                    text = text.replace(ALTTEXT_INVALID_REGEX, " ");
+                    text = OCRProcessor.sanitizeForAltText(text);
                     parsedImage.altText = text;
                     const newLine =
                         parsedImage.type === "embed"
@@ -163,6 +163,34 @@ export class OCRProcessor {
                 }
             }
         }
+    }
+
+    static sanitizeForAltText(text: string) {
+        text = text.replace(ALTTEXT_INVALID_REGEX, " ");
+        return text;
+    }
+
+    async processEmbed(embed: string) {
+        const pi = parseInternalImageLink(embed);
+        if(pi){
+            if (!pi?.altText || !pi.altText.length) {
+                let text = await this.recognizeURL(pi.urlOrPath);
+                //TODO: filter text length
+                if (text && text.length > TEXT_THRESHOLD) {
+                    text = OCRProcessor.sanitizeForAltText(text);
+                    pi.altText = text;                   
+                } else {
+                    pi.altText = pi.urlOrPath;
+                }
+                const newContent = replaceInternalImageLink(embed, pi);
+                return newContent;
+            } 
+            return embed;
+        } else {
+            return embed;
+        }
+
+
     }
 
     private async getImageURL(imagePathOrURL: string, extension?: string) {

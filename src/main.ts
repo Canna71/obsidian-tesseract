@@ -22,7 +22,7 @@ import {
     WorkspaceLeaf,
 } from "obsidian";
 import { TesseractSettingsTab } from "src/SettingTab";
-import { OCRProcessor } from "./Processor";
+import { OCRProcessor, parseInternalImageLink, replaceInternalImageLink } from "./Processor";
 
 const sigma = `<path stroke="currentColor" fill="none" d="M78.6067 22.8905L78.6067 7.71171L17.8914 7.71171L48.2491 48.1886L17.8914 88.6654L78.6067 88.6654L78.6067 73.4866" opacity="1"  stroke-linecap="round" stroke-linejoin="round" stroke-width="6" />
 `;
@@ -126,14 +126,18 @@ export default class TesseractPlugin extends Plugin {
 
     async scanFile(file: TFile, data: string, cache: CachedMetadata) {
         cache.embeds?.forEach(async embed=>{
-            const url = embed.link;
-            const extension = OCRProcessor.isImage(url);
-            const altText = embed.displayText;
-            if(extension && (!altText || !altText.length)){
-                const text = await this.processor.recognizeURL(url);
-                //TODO: filter text length
-                console.log(data, embed);
-                // this.app.vault.modify()
+            // const url = embed.link;
+            const extension = OCRProcessor.isImage(embed.link);
+            if(!extension) return;
+            const newEmbed = await this.processor.processEmbed(embed.original);
+            if(newEmbed !== embed.original) {
+                const newContent = data.substring(0,embed.position.start.offset)
+                + newEmbed
+                + data.substring(embed.position.end.offset);
+                // TODO: here the content of the file might have changed!
+                // check if it's open?
+                // debounce the scan?
+                // this.app.vault.modify(file,newContent);
             }
         })
     }
