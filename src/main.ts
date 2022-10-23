@@ -131,9 +131,11 @@ export default class TesseractPlugin extends Plugin {
             if(!extension) return;
             const newEmbed = await this.processor.processEmbed(embed.original);
             if(newEmbed !== embed.original) {
+                const files = this.app.workspace.getLeavesOfType("markdown").map(leaf => (leaf.view as MarkdownView).file);
                 const newContent = data.substring(0,embed.position.start.offset)
                 + newEmbed
                 + data.substring(embed.position.end.offset);
+                
                 // TODO: here the content of the file might have changed!
                 // check if it's open?
                 // debounce the scan?
