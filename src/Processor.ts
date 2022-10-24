@@ -17,7 +17,7 @@ const TEXT_THRESHOLD = 5;
 const EMBED_REGEX =
     /!\[\[\b(.*\.(png|jpg|jpeg|gif|bmp))(?:[^|]*)(?:\|([^|]*))?(?:\|([^|]*))?\]\]/i;
 
-const IMGSIZE_REGEX = /\d+(?:x\d+)?/i;
+const IMGSIZE_REGEX = /^\s*\d+(?:x\d+)?/i;
 // https://regex101.com/r/kXe1en/2
 const LINK_REGEX = /!\[(.*)\].*\((.*\.(png|jpg|jpeg|gif|bmp))(?:.*)\)/i;
 
@@ -174,6 +174,7 @@ export class OCRProcessor {
         const pi = parseInternalImageLink(embed);
         if(pi){
             if (!pi?.altText || !pi.altText.length) {
+                console.log(pi)
                 let text = await this.recognizeURL(pi.urlOrPath);
                 //TODO: filter text length
                 if (text && text.length > TEXT_THRESHOLD) {
